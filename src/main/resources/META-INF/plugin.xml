@@ -9,8 +9,8 @@
     <vendor>hawkchose1@gamil.com</vendor>
 
     <description><![CDATA[
-    Adds a tool window to quickly access the Codex CLI tool.<br>
-    集成 Codex 命令行工具到侧边栏。
+    Quickly launch Codex CLI in the terminal.<br>
+    快速在终端中启动 Codex 命令行工具。
     ]]></description>
 
     <!-- 依赖声明：必须声明依赖 Terminal 模块 -->
@@ -18,13 +18,7 @@
     <depends>org.jetbrains.plugins.terminal</depends>
 
     <extensions defaultExtensionNs="com.intellij">
-        <!--
-            注册工具窗口
-            anchor="right": 放在右侧
-            factoryClass: 指向下面的 Kotlin 类
-        -->
-        <toolWindow id="Codex CLI"
-                    secondary="false"
+        <toolWindow id="Codex"
                     anchor="right"
                     factoryClass="com.hawk.codex.CodexToolWindowFactory"/>
     </extensions>
