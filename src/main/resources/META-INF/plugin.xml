@@ -9,8 +9,9 @@
     <vendor>hawkchose1@gamil.com</vendor>
 
     <description><![CDATA[
-    Quickly launch Codex CLI in the terminal.<br>
-    快速在终端中启动 Codex 命令行工具。
+    Codex - AI 代码补全与终端集成工具<br>
+    - 基于本地 Ollama 模型的 Inline 代码补全<br>
+    - 快速发送代码到 Codex CLI 终端
     ]]></description>
 
     <!-- 依赖声明：必须声明依赖 Terminal 模块 -->
@@ -21,6 +22,25 @@
         <toolWindow id="Codex"
                     anchor="right"
                     factoryClass="com.hawk.codex.CodexToolWindowFactory"/>
+
+        <!-- 设置服务 -->
+        <applicationService
+                serviceImplementation="com.hawk.codex.settings.CodexSettings"/>
+
+        <!-- 代码索引服务 (项目级别) -->
+        <projectService
+                serviceImplementation="com.hawk.codex.index.CodeIndexService"/>
+
+        <!-- 设置界面 -->
+        <applicationConfigurable
+                parentId="tools"
+                instance="com.hawk.codex.settings.CodexSettingsConfigurable"
+                id="com.hawk.codex.settings"
+                displayName="Codex Completion"/>
+
+        <!-- Inline 补全提供者 -->
+        <inlineCompletionProvider
+                implementation="com.hawk.codex.completion.CodexInlineCompletionProvider"/>
     </extensions>
 
     <actions>
@@ -32,6 +52,23 @@
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
             <!-- 项目视图右键菜单 -->
             <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+        </action>
+
+        <!-- 代码补全 Action -->
+        <action id="com.hawk.codex.CodexCompletionAction"
+                class="com.hawk.codex.completion.CodexCompletionAction"
+                text="Codex: Trigger Completion"
+                description="触发 AI 代码补全">
+            <keyboard-shortcut keymap="$default" first-keystroke="alt BACK_SLASH"/>
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </action>
+
+        <!-- 接受补全 Action -->
+        <action id="com.hawk.codex.AcceptCompletionAction"
+                class="com.hawk.codex.completion.AcceptCompletionAction"
+                text="Codex: Accept Completion"
+                description="接受 AI 代码补全">
+            <keyboard-shortcut keymap="$default" first-keystroke="TAB"/>
         </action>
     </actions>
 </idea-plugin>

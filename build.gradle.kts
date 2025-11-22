@@ -17,6 +17,11 @@ repositories {
 // Configure IntelliJ Platform Gradle Plugin
 // Read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin.html
 dependencies {
+    // HTTP 客户端
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // JSON 解析
+    implementation("com.google.code.gson:gson:2.10.1")
+
     intellijPlatform {
         create("IC", "2025.1.4.1")
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
