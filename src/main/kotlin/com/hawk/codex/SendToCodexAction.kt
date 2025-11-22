@@ -14,17 +14,35 @@ class SendToCodexAction : AnAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
         val file = e.getData(CommonDataKeys.VIRTUAL_FILE) ?: return
+        val editor = e.getData(CommonDataKeys.EDITOR)
 
         // 获取相对路径
         val basePath = project.basePath ?: return
         val relativePath = file.path.removePrefix(basePath).removePrefix("/")
-        val textToSend = "@$relativePath "
+
+        // 检查是否有选中的文本
+        val textToSend = if (editor != null && editor.selectionModel.hasSelection()) {
+            val document = editor.document
+            val selectionModel = editor.selectionModel
+
+            // 获取选中区域的起始和结束行号（从1开始）
+            val startLine = document.getLineNumber(selectionModel.selectionStart) + 1
+            val endLine = document.getLineNumber(selectionModel.selectionEnd) + 1
+
+            if (startLine == endLine) {
+                "@$relativePath#L$startLine "
+            } else {
+                "@$relativePath#L$startLine-$endLine "
+            }
+        } else {
+            "@$relativePath "
+        }
 
         // 查找或创建 codex 终端并发送文本
-        sendToClaudeCodeTerminal(project, textToSend)
+        sendToCodexTerminal(project, textToSend)
     }
 
-    private fun sendToClaudeCodeTerminal(project: Project, text: String) {
+    private fun sendToCodexTerminal(project: Project, text: String) {
         val toolWindow = ToolWindowManager.getInstance(project).getToolWindow("Terminal")
 
         if (toolWindow == null) {
