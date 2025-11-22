@@ -1,0 +1,31 @@
+<!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
+<idea-plugin>
+    <!-- Unique identifier of the plugin. It should be FQN. It cannot be changed between the plugin versions. -->
+    <id>com.hawk.codex</id>
+
+    <!-- Public plugin name should be written in Title Case.
+         Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-name -->
+    <name>Codex</name>
+    <vendor>hawkchose1@gamil.com</vendor>
+
+    <description><![CDATA[
+    Adds a tool window to quickly access the Codex CLI tool.<br>
+    集成 Codex 命令行工具到侧边栏。
+    ]]></description>
+
+    <!-- 依赖声明：必须声明依赖 Terminal 模块 -->
+    <depends>com.intellij.modules.platform</depends>
+    <depends>org.jetbrains.plugins.terminal</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <!--
+            注册工具窗口
+            anchor="right": 放在右侧
+            factoryClass: 指向下面的 Kotlin 类
+        -->
+        <toolWindow id="Codex CLI"
+                    secondary="false"
+                    anchor="right"
+                    factoryClass="com.hawk.codex.CodexToolWindowFactory"/>
+    </extensions>
+</idea-plugin>
