@@ -22,4 +22,16 @@
                     anchor="right"
                     factoryClass="com.hawk.codex.CodexToolWindowFactory"/>
     </extensions>
+
+    <actions>
+        <action id="com.hawk.codex.SendToCodexAction"
+                class="com.hawk.codex.SendToCodexAction"
+                text="Send to Codex"
+                description="发送文件路径到 codex 终端">
+            <!-- 编辑器右键菜单 -->
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <!-- 项目视图右键菜单 -->
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+        </action>
+    </actions>
 </idea-plugin>
