@@ -19,7 +19,7 @@ class OpenCodexTerminalAction : AnAction() {
             // 创建新的终端标签页（每次都创建新的）
             val widget = terminalManager.createShellWidget(
                 project.basePath,
-                "Codex",
+                "codex",
                 true,  // activate - 激活新创建的标签页
                 false  // requestFocus - 不立即获取焦点
             )
