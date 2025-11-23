@@ -4,7 +4,9 @@
       "Bash(find:*)",
       "Bash(tree:*)",
       "Bash(./gradlew tasks:*)",
-      "Bash(./gradlew classes:*)"
+      "Bash(./gradlew classes:*)",
+      "Bash(./gradlew buildPlugin:*)",
+      "Bash(./gradlew build:*)"
     ],
     "deny": [],
     "ask": []

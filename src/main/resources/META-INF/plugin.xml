@@ -19,10 +19,6 @@
     <depends>org.jetbrains.plugins.terminal</depends>
 
     <extensions defaultExtensionNs="com.intellij">
-        <toolWindow id="Codex"
-                    anchor="right"
-                    factoryClass="com.hawk.codex.CodexToolWindowFactory"/>
-
         <!-- 设置服务 -->
         <applicationService
                 serviceImplementation="com.hawk.codex.settings.CodexSettings"/>
@@ -44,6 +40,14 @@
     </extensions>
 
     <actions>
+        <!-- 打开 Codex 终端（右侧工具栏按钮） -->
+        <action id="com.hawk.codex.OpenCodexTerminalAction"
+                class="com.hawk.codex.OpenCodexTerminalAction"
+                text="Open Codex Terminal"
+                description="Open Codex CLI in terminal">
+            <add-to-group group-id="MainToolbarRight" anchor="first"/>
+        </action>
+
         <action id="com.hawk.codex.SendToCodexAction"
                 class="com.hawk.codex.SendToCodexAction"
                 text="Send to Codex"
