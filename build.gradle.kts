@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.hawk.codex"
-version = "0.1-SNAPSHOT"
+version = "0.2.0"
 
 repositories {
     mavenCentral()
