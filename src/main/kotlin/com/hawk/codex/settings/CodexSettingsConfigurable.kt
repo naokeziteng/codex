@@ -1,10 +1,11 @@
 package com.hawk.codex.settings
 
-import com.hawk.codex.ollama.OllamaClient
+import com.hawk.codex.qwen.QwenClient
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
+import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.FormBuilder
 import java.awt.BorderLayout
@@ -13,17 +14,16 @@ import javax.swing.*
 
 /**
  * Codex 设置界面
+ * 配置通义千问 API
  */
 class CodexSettingsConfigurable : Configurable {
 
     private var panel: JPanel? = null
     private var enabledCheckbox: JBCheckBox? = null
-    private var ollamaUrlField: JBTextField? = null
+    private var apiKeyField: JBPasswordField? = null
     private var completionModelCombo: ComboBox<String>? = null
     private var maxTokensField: JBTextField? = null
     private var temperatureField: JBTextField? = null
-    private var debounceField: JBTextField? = null
-    private var enableRagCheckbox: JBCheckBox? = null
     private var statusLabel: JBLabel? = null
 
     override fun getDisplayName(): String = "Codex Completion"
@@ -32,45 +32,52 @@ class CodexSettingsConfigurable : Configurable {
         val settings = CodexSettings.getInstance()
 
         enabledCheckbox = JBCheckBox("启用代码补全", settings.enabled)
-        ollamaUrlField = JBTextField(settings.ollamaUrl, 30)
+        apiKeyField = JBPasswordField().apply {
+            text = settings.apiKey
+            columns = 30
+        }
         completionModelCombo = ComboBox<String>().apply {
-            isEditable = true
-            addItem(settings.completionModel)
+            isEditable = false
+            QwenClient.AVAILABLE_MODELS.forEach { addItem(it) }
+            selectedItem = settings.completionModel
         }
         maxTokensField = JBTextField(settings.maxTokens.toString(), 10)
         temperatureField = JBTextField(settings.temperature.toString(), 10)
-        debounceField = JBTextField(settings.debounceMs.toString(), 10)
-        enableRagCheckbox = JBCheckBox("启用 RAG (代码库检索增强)", settings.enableRag)
-        statusLabel = JBLabel("点击测试连接检查 Ollama 状态")
+        statusLabel = JBLabel("请配置 DashScope API Key")
 
         // 测试连接按钮
         val testButton = JButton("测试连接").apply {
             addActionListener { testConnection() }
         }
 
-        // 刷新模型列表按钮
-        val refreshModelsButton = JButton("刷新模型列表").apply {
-            addActionListener { refreshModels() }
+        // 获取 API Key 链接
+        val getApiKeyButton = JButton("获取 API Key").apply {
+            addActionListener {
+                try {
+                    java.awt.Desktop.getDesktop().browse(
+                        java.net.URI("https://bailian.console.aliyun.com/?tab=ak#/api-key")
+                    )
+                } catch (e: Exception) {
+                    statusLabel?.text = "无法打开浏览器: ${e.message}"
+                }
+            }
         }
 
         val buttonPanel = JPanel(FlowLayout(FlowLayout.LEFT)).apply {
             add(testButton)
-            add(refreshModelsButton)
+            add(getApiKeyButton)
         }
 
         panel = FormBuilder.createFormBuilder()
             .addComponent(enabledCheckbox!!)
             .addSeparator()
-            .addLabeledComponent(JBLabel("Ollama 地址:"), ollamaUrlField!!)
+            .addLabeledComponent(JBLabel("API Key:"), apiKeyField!!)
             .addLabeledComponent(JBLabel("补全模型:"), completionModelCombo!!)
             .addComponent(buttonPanel)
             .addLabeledComponent(JBLabel("状态:"), statusLabel!!)
             .addSeparator()
             .addLabeledComponent(JBLabel("最大 Token 数:"), maxTokensField!!)
             .addLabeledComponent(JBLabel("Temperature:"), temperatureField!!)
-            .addLabeledComponent(JBLabel("防抖延迟 (ms):"), debounceField!!)
-            .addSeparator()
-            .addComponent(enableRagCheckbox!!)
             .addComponentFillVertically(JPanel(), 0)
             .panel
 
@@ -80,45 +87,24 @@ class CodexSettingsConfigurable : Configurable {
     }
 
     private fun testConnection() {
-        val url = ollamaUrlField?.text ?: return
-        statusLabel?.text = "正在连接..."
+        val apiKey = String(apiKeyField?.password ?: charArrayOf())
+        if (apiKey.isBlank()) {
+            statusLabel?.text = "✗ 请输入 API Key"
+            return
+        }
+
+        val model = completionModelCombo?.selectedItem?.toString() ?: "qwen3-coder-plus"
+        statusLabel?.text = "正在验证 API Key..."
 
         Thread {
             try {
-                val client = OllamaClient(url)
+                val client = QwenClient(apiKey, model)
                 val available = client.isAvailable()
                 SwingUtilities.invokeLater {
                     if (available) {
-                        statusLabel?.text = "✓ Ollama 连接成功"
+                        statusLabel?.text = "✓ API Key 有效，连接成功"
                     } else {
-                        statusLabel?.text = "✗ 无法连接到 Ollama"
-                    }
-                }
-            } catch (e: Exception) {
-                SwingUtilities.invokeLater {
-                    statusLabel?.text = "✗ 错误: ${e.message}"
-                }
-            }
-        }.start()
-    }
-
-    private fun refreshModels() {
-        val url = ollamaUrlField?.text ?: return
-        statusLabel?.text = "正在获取模型列表..."
-
-        Thread {
-            try {
-                val client = OllamaClient(url)
-                val models = client.listModels()
-                SwingUtilities.invokeLater {
-                    completionModelCombo?.removeAllItems()
-                    models.forEach { model ->
-                        completionModelCombo?.addItem(model)
-                    }
-                    if (models.isNotEmpty()) {
-                        statusLabel?.text = "✓ 找到 ${models.size} 个模型"
-                    } else {
-                        statusLabel?.text = "未找到模型，请先用 ollama pull 下载"
+                        statusLabel?.text = "✗ API Key 无效或服务不可用"
                     }
                 }
             } catch (e: Exception) {
@@ -132,33 +118,27 @@ class CodexSettingsConfigurable : Configurable {
     override fun isModified(): Boolean {
         val settings = CodexSettings.getInstance()
         return enabledCheckbox?.isSelected != settings.enabled ||
-                ollamaUrlField?.text != settings.ollamaUrl ||
+                String(apiKeyField?.password ?: charArrayOf()) != settings.apiKey ||
                 completionModelCombo?.selectedItem?.toString() != settings.completionModel ||
                 maxTokensField?.text != settings.maxTokens.toString() ||
-                temperatureField?.text != settings.temperature.toString() ||
-                debounceField?.text != settings.debounceMs.toString() ||
-                enableRagCheckbox?.isSelected != settings.enableRag
+                temperatureField?.text != settings.temperature.toString()
     }
 
     override fun apply() {
         val settings = CodexSettings.getInstance()
         settings.enabled = enabledCheckbox?.isSelected ?: true
-        settings.ollamaUrl = ollamaUrlField?.text ?: "http://localhost:11434"
-        settings.completionModel = completionModelCombo?.selectedItem?.toString() ?: "deepseek-coder:6.7b"
-        settings.maxTokens = maxTokensField?.text?.toIntOrNull() ?: 256
-        settings.temperature = temperatureField?.text?.toDoubleOrNull() ?: 0.2
-        settings.debounceMs = debounceField?.text?.toLongOrNull() ?: 300
-        settings.enableRag = enableRagCheckbox?.isSelected ?: true
+        settings.apiKey = String(apiKeyField?.password ?: charArrayOf())
+        settings.completionModel = completionModelCombo?.selectedItem?.toString() ?: "qwen3-coder-plus"
+        settings.maxTokens = maxTokensField?.text?.toIntOrNull() ?: 512
+        settings.temperature = temperatureField?.text?.toDoubleOrNull() ?: 0.1
     }
 
     override fun reset() {
         val settings = CodexSettings.getInstance()
         enabledCheckbox?.isSelected = settings.enabled
-        ollamaUrlField?.text = settings.ollamaUrl
+        apiKeyField?.text = settings.apiKey
         completionModelCombo?.selectedItem = settings.completionModel
         maxTokensField?.text = settings.maxTokens.toString()
         temperatureField?.text = settings.temperature.toString()
-        debounceField?.text = settings.debounceMs.toString()
-        enableRagCheckbox?.isSelected = settings.enableRag
     }
 }

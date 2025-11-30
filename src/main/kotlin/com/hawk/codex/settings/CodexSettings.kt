@@ -19,13 +19,10 @@ class CodexSettings : PersistentStateComponent<CodexSettings.State> {
 
     data class State(
         var enabled: Boolean = true,
-        var ollamaUrl: String = "http://localhost:11434",
-        var completionModel: String = "deepseek-coder:6.7b",
-        var embeddingModel: String = "nomic-embed-text",
-        var maxTokens: Int = 256,
-        var temperature: Double = 0.2,
-        var debounceMs: Long = 300,
-        var enableRag: Boolean = true
+        var apiKey: String = "",
+        var completionModel: String = "qwen3-coder-plus",
+        var maxTokens: Int = 512,
+        var temperature: Double = 0.1
     )
 
     private var state = State()
@@ -40,17 +37,13 @@ class CodexSettings : PersistentStateComponent<CodexSettings.State> {
         get() = state.enabled
         set(value) { state.enabled = value }
 
-    var ollamaUrl: String
-        get() = state.ollamaUrl
-        set(value) { state.ollamaUrl = value }
+    var apiKey: String
+        get() = state.apiKey
+        set(value) { state.apiKey = value }
 
     var completionModel: String
         get() = state.completionModel
         set(value) { state.completionModel = value }
-
-    var embeddingModel: String
-        get() = state.embeddingModel
-        set(value) { state.embeddingModel = value }
 
     var maxTokens: Int
         get() = state.maxTokens
@@ -59,14 +52,6 @@ class CodexSettings : PersistentStateComponent<CodexSettings.State> {
     var temperature: Double
         get() = state.temperature
         set(value) { state.temperature = value }
-
-    var debounceMs: Long
-        get() = state.debounceMs
-        set(value) { state.debounceMs = value }
-
-    var enableRag: Boolean
-        get() = state.enableRag
-        set(value) { state.enableRag = value }
 
     companion object {
         fun getInstance(): CodexSettings {

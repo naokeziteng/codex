@@ -10,7 +10,7 @@
 
     <description><![CDATA[
     Codex - AI 代码补全与终端集成工具<br>
-    - 基于本地 Ollama 模型的 Inline 代码补全<br>
+    - 基于通义千问 (Qwen) 云端 API 的 Inline 代码补全<br>
     - 快速发送代码到 Codex CLI 终端
     ]]></description>
 
@@ -22,10 +22,6 @@
         <!-- 设置服务 -->
         <applicationService
                 serviceImplementation="com.hawk.codex.settings.CodexSettings"/>
-
-        <!-- 代码索引服务 (项目级别) -->
-        <projectService
-                serviceImplementation="com.hawk.codex.index.CodeIndexService"/>
 
         <!-- 设置界面 -->
         <applicationConfigurable

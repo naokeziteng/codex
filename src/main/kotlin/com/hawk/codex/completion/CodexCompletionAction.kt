@@ -1,21 +1,17 @@
 package com.hawk.codex.completion
 
-import com.hawk.codex.ollama.OllamaClient
+import com.hawk.codex.qwen.QwenClient
 import com.hawk.codex.settings.CodexSettings
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.EditorCustomElementRenderer
 import com.intellij.openapi.editor.Inlay
 import com.intellij.openapi.editor.colors.EditorFontType
-import com.intellij.openapi.editor.event.EditorMouseListener
-import com.intellij.openapi.editor.event.EditorMouseEvent
 import com.intellij.openapi.editor.markup.TextAttributes
-import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.Key
 import java.awt.Color
@@ -47,10 +43,14 @@ class CodexCompletionAction : AnAction() {
 
     override fun actionPerformed(e: AnActionEvent) {
         val editor = e.getData(CommonDataKeys.EDITOR) ?: return
-        val project = e.project ?: return
         val settings = CodexSettings.getInstance()
 
         if (!settings.enabled) return
+
+        // 检查 API Key
+        if (settings.apiKey.isBlank()) {
+            return
+        }
 
         // 清除之前的补全
         clearCompletion(editor)
@@ -69,11 +69,15 @@ class CodexCompletionAction : AnAction() {
         // 异步获取补全
         executor.submit {
             try {
-                val client = OllamaClient(settings.ollamaUrl)
+                val client = QwenClient(
+                    apiKey = settings.apiKey,
+                    model = settings.completionModel,
+                    maxTokens = settings.maxTokens,
+                    temperature = settings.temperature
+                )
                 val completion = client.complete(
                     prefix = trimmedPrefix,
-                    suffix = trimmedSuffix,
-                    model = settings.completionModel
+                    suffix = trimmedSuffix
                 )
 
                 val cleanedCompletion = cleanCompletion(completion)
@@ -111,12 +115,18 @@ class CodexCompletionAction : AnAction() {
     private fun cleanCompletion(completion: String): String {
         var result = completion
 
-        // 移除 FIM 特殊标记
+        // 移除 Qwen FIM 特殊标记
+        result = result.replace("<|fim_prefix|>", "")
+        result = result.replace("<|fim_suffix|>", "")
+        result = result.replace("<|fim_middle|>", "")
+
+        // 移除其他常见的 FIM 标记
         result = result.replace("<｜fim▁begin｜>", "")
         result = result.replace("<｜fim▁hole｜>", "")
         result = result.replace("<｜fim▁end｜>", "")
         result = result.replace("<|EOT|>", "")
         result = result.replace("<|eot_id|>", "")
+        result = result.replace("<|endoftext|>", "")
 
         // 如果包含 markdown 代码块，提取代码块内容
         val codeBlockRegex = Regex("```\\w*\\n([\\s\\S]*?)```")
@@ -144,7 +154,10 @@ class CodexCompletionAction : AnAction() {
 
     override fun update(e: AnActionEvent) {
         val editor = e.getData(CommonDataKeys.EDITOR)
-        e.presentation.isEnabledAndVisible = editor != null && CodexSettings.getInstance().enabled
+        val settings = CodexSettings.getInstance()
+        e.presentation.isEnabledAndVisible = editor != null &&
+            settings.enabled &&
+            settings.apiKey.isNotBlank()
     }
 
     override fun getActionUpdateThread(): ActionUpdateThread {

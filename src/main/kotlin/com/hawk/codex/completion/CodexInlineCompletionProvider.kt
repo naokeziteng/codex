@@ -1,7 +1,6 @@
 package com.hawk.codex.completion
 
-import com.hawk.codex.index.CodeIndexService
-import com.hawk.codex.ollama.OllamaClient
+import com.hawk.codex.qwen.QwenClient
 import com.hawk.codex.settings.CodexSettings
 import com.intellij.codeInsight.inline.completion.*
 import com.intellij.codeInsight.inline.completion.elements.InlineCompletionGrayTextElement
@@ -14,7 +13,7 @@ import kotlinx.coroutines.withContext
 /**
  * Codex Inline 代码补全提供者
  * 实现类似 GitHub Copilot 的 inline 补全体验
- * 支持 RAG（检索增强生成）
+ * 使用通义千问 API
  */
 class CodexInlineCompletionProvider : InlineCompletionProvider {
 
@@ -31,10 +30,13 @@ class CodexInlineCompletionProvider : InlineCompletionProvider {
             return InlineCompletionSuggestion.Empty
         }
 
-        val editor = request.editor
+        // 检查 API Key
+        if (settings.apiKey.isBlank()) {
+            return InlineCompletionSuggestion.Empty
+        }
+
         val document = request.document
         val offset = request.endOffset
-        val project = editor.project
 
         // 获取光标前后的代码作为上下文
         val prefix = document.text.substring(0, offset)
@@ -55,36 +57,16 @@ class CodexInlineCompletionProvider : InlineCompletionProvider {
 
         return try {
             val completion = withContext(Dispatchers.IO) {
-                val client = OllamaClient(settings.ollamaUrl)
-
-                // RAG: 检索相关代码
-                var ragContext = ""
-                if (settings.enableRag && project != null) {
-                    try {
-                        val indexService = CodeIndexService.getInstance(project)
-                        // 使用光标附近的代码作为查询
-                        val queryText = trimmedPrefix.takeLast(500)
-                        val relevantChunks = indexService.search(queryText, topK = 3)
-
-                        if (relevantChunks.isNotEmpty()) {
-                            ragContext = buildRagContext(relevantChunks)
-                        }
-                    } catch (e: Exception) {
-                        logger.debug("RAG search failed: ${e.message}")
-                    }
-                }
-
-                // 构建增强的 prefix
-                val enhancedPrefix = if (ragContext.isNotBlank()) {
-                    "// Related code from project:\n$ragContext\n\n// Current file:\n$trimmedPrefix"
-                } else {
-                    trimmedPrefix
-                }
+                val client = QwenClient(
+                    apiKey = settings.apiKey,
+                    model = settings.completionModel,
+                    maxTokens = settings.maxTokens,
+                    temperature = settings.temperature
+                )
 
                 client.complete(
-                    prefix = enhancedPrefix,
-                    suffix = trimmedSuffix,
-                    model = settings.completionModel
+                    prefix = trimmedPrefix,
+                    suffix = trimmedSuffix
                 )
             }
 
@@ -107,28 +89,23 @@ class CodexInlineCompletionProvider : InlineCompletionProvider {
     }
 
     /**
-     * 构建 RAG 上下文
-     */
-    private fun buildRagContext(chunks: List<com.hawk.codex.index.CodeChunk>): String {
-        return chunks.joinToString("\n\n") { chunk ->
-            "// From: ${chunk.filePath}:${chunk.startLine}-${chunk.endLine}\n${chunk.content}"
-        }
-    }
-
-    /**
      * 清理补全结果
      */
     private fun cleanCompletion(completion: String): String {
         var result = completion
 
-        // 移除 FIM 特殊标记
+        // 移除 Qwen FIM 特殊标记
+        result = result.replace("<|fim_prefix|>", "")
+        result = result.replace("<|fim_suffix|>", "")
+        result = result.replace("<|fim_middle|>", "")
+
+        // 移除其他常见的 FIM 标记
         result = result.replace("<｜fim▁begin｜>", "")
         result = result.replace("<｜fim▁hole｜>", "")
         result = result.replace("<｜fim▁end｜>", "")
-
-        // 移除 EOT 标记
         result = result.replace("<|EOT|>", "")
         result = result.replace("<|eot_id|>", "")
+        result = result.replace("<|endoftext|>", "")
 
         // 如果包含 markdown 代码块，提取代码块内容
         val codeBlockRegex = Regex("```\\w*\\n([\\s\\S]*?)```")
@@ -156,6 +133,6 @@ class CodexInlineCompletionProvider : InlineCompletionProvider {
 
     override fun isEnabled(event: InlineCompletionEvent): Boolean {
         val settings = CodexSettings.getInstance()
-        return settings.enabled
+        return settings.enabled && settings.apiKey.isNotBlank()
     }
 }

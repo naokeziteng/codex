@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 这是一个 IntelliJ IDEA 插件项目，集成了 AI 代码补全和 Codex CLI 工具。插件提供以下核心功能：
 
-1. **AI 代码补全**: 基于本地 Ollama 模型的智能代码补全，支持 RAG（检索增强生成）
+1. **AI 代码补全**: 基于通义千问 (Qwen) 云端 API 的智能代码补全
 2. **Send to Codex**: 右键菜单快速发送文件/代码到 Codex CLI 终端
 3. **终端集成**: 快速在内置终端中启动 Codex 命令行界面
 
@@ -15,7 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **目标平台**: IntelliJ IDEA Community Edition 2025.1.4.1
 - **最低构建版本**: 251
 - **语言**: Kotlin (JVM 21)
-- **依赖**: Ollama (本地 LLM 服务)
+- **依赖**: 阿里云 DashScope API (通义千问)
 
 ## 构建与开发命令
 
@@ -82,8 +82,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **CodexInlineCompletionProvider** (`src/main/kotlin/com/hawk/codex/completion/CodexInlineCompletionProvider.kt`)
 - 实现 `InlineCompletionProvider` 接口
 - 提供类似 GitHub Copilot 的 inline 补全体验
-- 支持 RAG：从代码索引中检索相关代码片段作为上下文
-- 调用 OllamaClient 生成补全建议
+- 调用 QwenClient 生成补全建议
 
 **CodexCompletionAction** (`src/main/kotlin/com/hawk/codex/completion/CodexCompletionAction.kt`)
 - 快捷键触发的手动补全 Action (Option/Alt + \)
@@ -94,52 +93,33 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Tab 键接受补全建议
 - 将补全文本插入到光标位置
 
-**OllamaClient** (`src/main/kotlin/com/hawk/codex/ollama/OllamaClient.kt`)
-- Ollama API 客户端（基于 OkHttp）
-- 支持代码补全和文本嵌入
-- API endpoints:
-  - `/api/generate`: 代码补全
-  - `/api/embeddings`: 生成向量嵌入
-  - `/api/tags`: 获取可用模型列表
+**QwenClient** (`src/main/kotlin/com/hawk/codex/qwen/QwenClient.kt`)
+- 通义千问 API 客户端（基于 OkHttp）
+- 使用 OpenAI 兼容模式调用 DashScope API
+- 支持 FIM (Fill-in-Middle) 代码补全
+- API 端点: `https://dashscope.aliyuncs.com/compatible-mode/v1/completions`
 
-#### 2. RAG (检索增强生成) 系统
+#### 2. Codex CLI 集成
 
-**CodeIndexService** (`src/main/kotlin/com/hawk/codex/index/CodeIndexService.kt`)
-- 项目级服务，负责代码索引和检索
-- 使用 VFS 监听器自动索引代码变更
-- 支持语义搜索（基于向量相似度）
-
-**VectorStore** (`src/main/kotlin/com/hawk/codex/index/VectorStore.kt`)
-- 内存向量数据库
-- 使用余弦相似度进行语义搜索
-- 存储代码块的文本内容和向量嵌入
-
-**CodeChunker** (`src/main/kotlin/com/hawk/codex/index/CodeChunker.kt`)
-- 将代码文件切分为可索引的块
-- 按函数/类/方法边界切分
-- 支持 Java, Kotlin, Python, JavaScript 等语言
-
-#### 3. Codex CLI 集成
-
-**CodexToolWindowFactory** (`src/main/kotlin/com/hawk/codex/CodexToolWindowFactory.kt`)
-- 右侧边栏工具窗口
-- 点击按钮直接在终端启动 `codex` 命令
+**OpenCodexTerminalAction** (`src/main/kotlin/com/hawk/codex/OpenCodexTerminalAction.kt`)
+- 工具栏按钮
+- 点击直接在终端启动 `codex` 命令
 
 **SendToCodexAction** (`src/main/kotlin/com/hawk/codex/SendToCodexAction.kt`)
 - 右键菜单 Action
 - 发送文件路径到终端: `@filepath`
 - 选中代码时发送行号: `@filepath#L12-19`
 
-#### 4. 设置管理
+#### 3. 设置管理
 
 **CodexSettings** (`src/main/kotlin/com/hawk/codex/settings/CodexSettings.kt`)
 - 应用级服务，存储插件配置
 - 配置项:
-  - Ollama URL (默认: http://localhost:11434)
-  - 补全模型 (默认: deepseek-coder:6.7b)
-  - 嵌入模型 (默认: nomic-embed-text)
+  - API Key (DashScope API Key)
+  - 补全模型 (默认: qwen3-coder-plus)
+  - 最大 Token 数 (默认: 512)
+  - Temperature (默认: 0.1)
   - 是否启用补全
-  - 是否启用 RAG
 
 **CodexSettingsConfigurable** (`src/main/kotlin/com/hawk/codex/settings/CodexSettingsConfigurable.kt`)
 - 设置界面 UI
@@ -150,12 +130,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **plugin.xml** (`src/main/resources/META-INF/plugin.xml`)
 - 声明插件元数据和依赖
 - 注册的扩展点:
-  - `toolWindow`: Codex 工具窗口
   - `applicationService`: CodexSettings
-  - `projectService`: CodeIndexService
   - `applicationConfigurable`: 设置界面
   - `inlineCompletionProvider`: AI 补全提供者
 - 注册的 Actions:
+  - `OpenCodexTerminalAction`: 打开 Codex 终端
   - `SendToCodexAction`: 发送到 Codex 终端
   - `CodexCompletionAction`: 触发补全 (Option/Alt + \)
   - `AcceptCompletionAction`: 接受补全 (Tab)
@@ -186,12 +165,9 @@ CodexCompletionAction.actionPerformed()
     ↓
 获取光标前后上下文 (各 1500 字符)
     ↓
-[可选] RAG: CodeIndexService.search() 检索相关代码
-    ↓
-OllamaClient.complete()
-    - 构建 prompt: "prefix<CURSOR>suffix"
-    - 添加 system prompt 指导模型行为
-    - 调用 Ollama API /api/generate
+QwenClient.complete()
+    - 构建 FIM prompt: "<|fim_prefix|>prefix<|fim_suffix|>suffix<|fim_middle|>"
+    - 调用 DashScope API /compatible-mode/v1/completions
     ↓
 cleanCompletion() 清理结果
     - 移除 FIM 标记
@@ -203,63 +179,45 @@ cleanCompletion() 清理结果
 用户按 Tab → AcceptCompletionAction 插入代码
 ```
 
-### 2. Ollama API 调用细节
+### 2. 通义千问 API 调用细节
+
+**API 端点**:
+- Base URL: `https://dashscope.aliyuncs.com/compatible-mode/v1`
+- Completions: `/completions`
+
+**认证**:
+- Header: `Authorization: Bearer {DASHSCOPE_API_KEY}`
+
+**FIM 格式**:
+```
+<|fim_prefix|>{prefix_code}<|fim_suffix|>{suffix_code}<|fim_middle|>
+```
 
 **补全请求**:
 ```json
 {
-  "model": "deepseek-coder:6.7b",
-  "prompt": "代码上下文<CURSOR>光标后代码",
-  "system": "You are a code completion assistant...",
-  "stream": false,
-  "options": {
-    "temperature": 0.1,
-    "num_predict": 512
-  }
+  "model": "qwen3-coder-plus",
+  "prompt": "<|fim_prefix|>def hello():\n    <|fim_suffix|>\n    return result<|fim_middle|>",
+  "max_tokens": 512,
+  "temperature": 0.1,
+  "stream": false
 }
 ```
 
 **关键参数**:
 - `temperature: 0.1`: 低温度，生成更确定的代码
-- `num_predict: 512`: 最多生成 512 tokens（约 256 行代码）
-- `system`: 指示模型只输出代码，不要解释
+- `max_tokens: 512`: 最多生成 512 tokens
+- `stream: false`: 非流式响应
 
-**已知问题**:
-- `max_tokens` 参数不被支持 → 使用 `num_predict`
-- `suffix`, `raw` 参数会导致 400 错误 → 已移除
-- DeepSeek-Coder 1.3B 模型上下文理解较弱 → 建议使用 6.7B
+**可用模型**:
+- `qwen3-coder-plus`: 推荐，支持上下文缓存
+- `qwen3-coder-flash`: 更快，支持上下文缓存
+- `qwen2.5-coder-32b-instruct`: 高质量
+- `qwen2.5-coder-14b-instruct`
+- `qwen2.5-coder-7b-instruct`: 入门选择
+- `qwen-coder-turbo`: 阿里云托管优化版
 
-### 3. RAG 实现
-
-**索引流程**:
-```
-项目打开 → CodeIndexService 初始化
-    ↓
-扫描所有代码文件
-    ↓
-CodeChunker 切分代码块 (按函数/类边界)
-    ↓
-OllamaClient.embed() 生成向量嵌入
-    ↓
-VectorStore 存储 (内存)
-    ↓
-VFS Listener 监听文件变更 → 增量更新索引
-```
-
-**检索流程**:
-```
-获取光标附近 500 字符作为查询
-    ↓
-OllamaClient.embed() 生成查询向量
-    ↓
-VectorStore.search() 余弦相似度搜索
-    ↓
-返回 Top-3 相关代码块
-    ↓
-拼接到 prompt: "// Related code:\n{chunks}\n\n// Current file:\n{prefix}"
-```
-
-### 4. Terminal 集成
+### 3. Terminal 集成
 
 **启动 Codex CLI**:
 ```kotlin
@@ -279,18 +237,16 @@ val endLine = document.getLineNumber(selectionEnd) + 1
 ttyConnector.write("@${virtualFile.path}#L$startLine-$endLine\n")
 ```
 
-### 5. 前置条件与环境要求
+### 4. 前置条件与环境要求
 
 **必需**:
-- Ollama 服务运行在 localhost:11434
-- 已下载代码模型（如 `deepseek-coder:6.7b`）
-- （可选）嵌入模型用于 RAG（如 `nomic-embed-text`）
-- `codex` CLI 工具在 PATH 中
+- 阿里云 DashScope API Key（可在 https://bailian.console.aliyun.com/?tab=ak#/api-key 获取）
+- `codex` CLI 工具在 PATH 中（用于终端集成功能）
 
-**模型选择建议**:
-- **deepseek-coder:1.3b**: 速度快（1-2秒），上下文理解弱，内存占用低（~2GB）
-- **deepseek-coder:6.7b**: 平衡选项（3-5秒），推荐，内存占用中（~6GB）
-- **codellama:13b**: 质量高（5-10秒），内存占用高（~12GB）
+**API Key 获取步骤**:
+1. 访问阿里云百炼控制台
+2. 创建 API Key
+3. 在插件设置中配置 API Key
 
 ### Gradle 配置优化
 - 启用了配置缓存 (`org.gradle.configuration-cache = true`)
@@ -305,18 +261,14 @@ codex/
 ├── settings.gradle.kts                        # 项目设置
 └── src/main/
     ├── kotlin/com/hawk/codex/
-    │   ├── CodexToolWindowFactory.kt          # 工具窗口
+    │   ├── OpenCodexTerminalAction.kt         # 打开终端 Action
     │   ├── SendToCodexAction.kt               # 右键菜单 Action
     │   ├── completion/
     │   │   ├── CodexInlineCompletionProvider.kt   # Inline 补全提供者
     │   │   ├── CodexCompletionAction.kt           # 手动触发补全
     │   │   └── AcceptCompletionAction.kt          # 接受补全
-    │   ├── ollama/
-    │   │   └── OllamaClient.kt                # Ollama API 客户端
-    │   ├── index/
-    │   │   ├── CodeIndexService.kt            # 代码索引服务
-    │   │   ├── VectorStore.kt                 # 向量数据库
-    │   │   └── CodeChunker.kt                 # 代码分块器
+    │   ├── qwen/
+    │   │   └── QwenClient.kt                  # 通义千问 API 客户端
     │   └── settings/
     │       ├── CodexSettings.kt               # 设置存储
     │       └── CodexSettingsConfigurable.kt   # 设置 UI
@@ -328,25 +280,29 @@ codex/
 
 ### 调试
 
-1. **查看 Ollama 请求日志**:
+1. **查看 API 请求日志**:
    ```bash
-   # 在 OllamaClient.kt 中添加日志
+   # 在 QwenClient.kt 中添加日志
    println("Request: ${requestBody.toString()}")
    println("Response: $responseBody")
    ```
 
 2. **查看 IntelliJ 日志**:
    - Help > Show Log in Finder/Explorer
-   - 搜索 "Codex" 或 "Ollama"
+   - 搜索 "Codex" 或 "Qwen"
 
-3. **测试 Ollama API**:
+3. **测试通义千问 API**:
    ```bash
-   # 检查服务状态
-   curl http://localhost:11434/api/tags
-
    # 测试补全
-   curl -X POST http://localhost:11434/api/generate \
-     -d '{"model":"deepseek-coder:6.7b","prompt":"def bubble_sort(arr):","stream":false}'
+   curl -X POST https://dashscope.aliyuncs.com/compatible-mode/v1/completions \
+     -H "Authorization: Bearer $DASHSCOPE_API_KEY" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "model": "qwen3-coder-plus",
+       "prompt": "<|fim_prefix|>def bubble_sort(arr):<|fim_suffix|>",
+       "max_tokens": 512,
+       "temperature": 0.1
+     }'
    ```
 
 ### 常见问题
@@ -355,20 +311,18 @@ codex/
 - IntelliJ CE 对 InlineCompletionProvider 支持有限
 - 解决方案：使用手动触发 (CodexCompletionAction + Inlay hints)
 
-**问题 2: Ollama 400/500 错误**
-- 检查参数是否支持（不要用 `max_tokens`, `suffix`, `raw`）
-- 使用 `num_predict` 而不是 `max_tokens`
+**问题 2: API 401/403 错误**
+- 检查 API Key 是否正确配置
+- 确认 API Key 未过期
 
-**问题 3: 模型返回中文解释而不是代码**
-- 添加更强的 system prompt
-- 使用更大的模型（6.7B 而不是 1.3B）
+**问题 3: API 429 错误**
+- 请求过于频繁，请稍后再试
+- 考虑添加请求节流
+
+**问题 4: 模型返回中文解释而不是代码**
 - 在 `cleanCompletion()` 中过滤中文字符
+- 使用更大的模型
 
-**问题 4: Tab 键接受补全不工作**
+**问题 5: Tab 键接受补全不工作**
 - 不要用 AWT KeyListener（会被 IntelliJ 拦截）
 - 使用 Action + keyboard-shortcut 注册
-
-**问题 5: RAG 索引速度慢**
-- 限制索引文件类型（只索引代码文件）
-- 使用增量索引（VFS Listener）
-- 考虑持久化向量到磁盘
