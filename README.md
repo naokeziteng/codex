@@ -1,14 +1,14 @@
 # Codex - AI Code Completion for IntelliJ IDEA
 
-一个集成 AI 代码补全和 Codex CLI 的 IntelliJ IDEA 插件。使用本地 Ollama 模型提供类似 GitHub Copilot 的代码补全体验，并支持 RAG（检索增强生成）。
+一个集成 AI 代码补全和 Codex CLI 的 IntelliJ IDEA 插件。使用阿里云通义千问 (Qwen) API 提供类似 GitHub Copilot 的代码补全体验。
 
 ## ✨ 功能特性
 
 ### 🤖 AI 代码补全
-- **本地模型**: 基于 Ollama，无需网络，保护代码隐私
-- **智能提示**: 使用 DeepSeek-Coder 等专业代码模型
+- **云端 API**: 基于通义千问 qwen3-coder-plus 模型，无需本地 GPU
+- **智能提示**: 专业代码模型，理解多种编程语言
 - **上下文感知**: 理解光标前后代码，生成合适的补全
-- **RAG 增强**: 从项目代码库检索相关代码，提升补全质量
+- **低延迟**: 云端 API 响应快速稳定
 
 ### 🚀 快捷操作
 - **快速触发**: `Option + \` (Mac) / `Alt + \` (Windows/Linux) 触发补全
@@ -16,7 +16,7 @@
 - **右键发送**: 右键菜单 "Send to Codex" 快速发送文件/代码到终端
 
 ### 🔧 Codex CLI 集成
-- **一键启动**: 右侧边栏按钮直接打开 Codex 终端
+- **一键启动**: 工具栏按钮直接打开 Codex 终端
 - **智能定位**: 发送文件时自动包含行号 (`@file.kt#L12-19`)
 
 ## 📦 安装
@@ -27,31 +27,11 @@
    - Community Edition 或 Ultimate Edition
    - 版本: 2025.1.4.1 或更高
 
-2. **Ollama** ([下载地址](https://ollama.ai/))
-   ```bash
-   # macOS
-   brew install ollama
+2. **阿里云 DashScope API Key**
+   - 访问 [阿里云百炼控制台](https://bailian.console.aliyun.com/?tab=ak#/api-key) 获取
+   - 新用户有免费额度
 
-   # Linux
-   curl -fsSL https://ollama.ai/install.sh | sh
-
-   # Windows
-   # 访问 https://ollama.ai/download 下载安装包
-   ```
-
-3. **下载模型**
-   ```bash
-   # 启动 Ollama 服务
-   ollama serve
-
-   # 下载代码补全模型（推荐 6.7B）
-   ollama pull deepseek-coder:6.7b
-
-   # （可选）下载嵌入模型用于 RAG
-   ollama pull nomic-embed-text
-   ```
-
-4. **Codex CLI** (可选，用于终端集成)
+3. **Codex CLI** (可选，用于终端集成)
    ```bash
    # 安装 Codex CLI 工具
    # 参考: https://claude.ai/code
@@ -86,11 +66,13 @@ cd codex
 
 1. 打开设置: `Settings` > `Tools` > `Codex Completion`
 2. 配置选项:
-   - **Ollama URL**: 默认 `http://localhost:11434`
-   - **Completion Model**: 选择补全模型（如 `deepseek-coder:6.7b`）
-   - **Embedding Model**: RAG 嵌入模型（如 `nomic-embed-text`）
+   - **API Key**: 输入 DashScope API Key
+   - **Completion Model**: 选择补全模型（默认 `qwen3-coder-plus`）
+   - **Max Tokens**: 最大生成 Token 数（默认 512）
+   - **Temperature**: 生成随机性（默认 0.1，越低越确定）
    - **Enable Completion**: 启用代码补全
-   - **Enable RAG**: 启用检索增强生成
+
+3. 点击"测试连接"验证 API Key 是否有效
 
 ### 代码补全
 
@@ -126,35 +108,35 @@ cd codex
 
 ### Codex CLI 终端
 
-- 点击右侧边栏的 "Codex" 按钮
+- 点击工具栏的 "Codex" 按钮
 - 自动在终端中启动 `codex` 命令
 
 ## ⚙️ 配置建议
 
+### API Key 获取
+
+1. 访问 [阿里云百炼控制台](https://bailian.console.aliyun.com/?tab=ak#/api-key)
+2. 登录/注册阿里云账号
+3. 创建 API Key
+4. 复制 API Key 到插件设置中
+
 ### 模型选择
 
-| 模型 | 速度 | 质量 | 内存占用 | 适用场景 |
-|------|------|------|----------|----------|
-| `deepseek-coder:1.3b` | ⚡⚡⚡ | ⭐⭐ | ~2GB | 快速简单补全 |
-| `deepseek-coder:6.7b` | ⚡⚡ | ⭐⭐⭐⭐ | ~6GB | **推荐** 日常开发 |
-| `codellama:13b` | ⚡ | ⭐⭐⭐⭐⭐ | ~12GB | 高质量补全 |
+| 模型 | 特点 | 适用场景 |
+|------|------|----------|
+| `qwen3-coder-plus` | 高质量，支持上下文缓存 | **推荐** 日常开发 |
 
-### 性能优化
+### 参数调优
 
-1. **上下文长度**: 默认 1500 字符（约 50 行）
-   - 小模型（1.3B）可减少到 800 字符
-   - 大模型（13B）可增加到 2500 字符
+- **Max Tokens**: 控制生成长度
+  - 简单补全: 256
+  - 完整函数: 512
+  - 大段代码: 1024
 
-2. **RAG 配置**:
-   - 关闭 RAG 可提升响应速度（约快 30%）
-   - 开启 RAG 可提升补全质量（尤其是项目特定代码）
-
-3. **Ollama 优化**:
-   ```bash
-   # 设置 Ollama 环境变量（可选）
-   export OLLAMA_NUM_PARALLEL=2  # 并行请求数
-   export OLLAMA_MAX_LOADED_MODELS=2  # 最大加载模型数
-   ```
+- **Temperature**: 控制随机性
+  - 0.1: 确定性高，适合代码补全
+  - 0.3: 略有变化，适合创意代码
+  - 0.7+: 高随机性，不推荐用于代码
 
 ## 🛠️ 开发
 
@@ -173,18 +155,21 @@ cd codex
 
 ### 调试
 
-1. **查看 Ollama 请求**:
+1. **测试 API**:
    ```bash
-   # 测试 API
-   curl http://localhost:11434/api/tags
-
-   curl -X POST http://localhost:11434/api/generate \
-     -d '{"model":"deepseek-coder:6.7b","prompt":"def hello():","stream":false}'
+   curl -X POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions \
+     -H "Authorization: Bearer $DASHSCOPE_API_KEY" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "model": "qwen3-coder-plus",
+       "messages": [{"role": "user", "content": "Complete: def hello():"}],
+       "max_tokens": 100
+     }'
    ```
 
 2. **查看 IntelliJ 日志**:
    - `Help` > `Show Log in Finder/Explorer`
-   - 搜索 "Codex" 或 "Ollama"
+   - 搜索 "Codex" 或 "Qwen"
 
 ### 技术栈
 
@@ -192,19 +177,19 @@ cd codex
 - **框架**: IntelliJ Platform SDK 2025.1
 - **HTTP 客户端**: OkHttp 4.12.0
 - **JSON 解析**: Gson 2.10.1
-- **LLM 服务**: Ollama
+- **LLM 服务**: 阿里云 DashScope (通义千问)
 
 ## 📋 已知问题
 
 1. **InlineCompletionProvider 在 CE 版本中不稳定**
    - 解决方案: 使用手动触发方式 (`Option + \`)
 
-2. **小模型（1.3B）有时返回中文解释**
-   - 解决方案: 升级到 6.7B 模型，或在代码中过滤中文字符
+2. **模型有时返回中文解释**
+   - 解决方案: 插件会自动过滤中文字符
 
-3. **首次补全较慢**
-   - 原因: Ollama 需要加载模型到内存（约 3-5 秒）
-   - 后续补全会快很多
+3. **网络延迟**
+   - 原因: 云端 API 调用需要网络
+   - 建议: 确保网络稳定
 
 ## 🤝 贡献
 
@@ -224,8 +209,8 @@ MIT License
 
 ## 🙏 致谢
 
-- [Ollama](https://ollama.ai/) - 本地 LLM 运行时
-- [DeepSeek-Coder](https://github.com/deepseek-ai/DeepSeek-Coder) - 代码生成模型
+- [阿里云 DashScope](https://dashscope.aliyun.com/) - 通义千问 API 服务
+- [Qwen](https://github.com/QwenLM/Qwen) - 通义千问大模型
 - [IntelliJ Platform SDK](https://plugins.jetbrains.com/docs/intellij/) - 插件开发框架
 
 ## 📞 联系方式

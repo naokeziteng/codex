@@ -95,9 +95,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **QwenClient** (`src/main/kotlin/com/hawk/codex/qwen/QwenClient.kt`)
 - 通义千问 API 客户端（基于 OkHttp）
-- 使用 OpenAI 兼容模式调用 DashScope API
-- 支持 FIM (Fill-in-Middle) 代码补全
-- API 端点: `https://dashscope.aliyuncs.com/compatible-mode/v1/completions`
+- 使用 OpenAI 兼容模式调用 DashScope Chat Completions API
+- API 端点: `https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions`
 
 #### 2. Codex CLI 集成
 
@@ -166,11 +165,12 @@ CodexCompletionAction.actionPerformed()
 获取光标前后上下文 (各 1500 字符)
     ↓
 QwenClient.complete()
-    - 构建 FIM prompt: "<|fim_prefix|>prefix<|fim_suffix|>suffix<|fim_middle|>"
-    - 调用 DashScope API /compatible-mode/v1/completions
+    - 使用 Chat Completions API + partial 模式
+    - 构建 messages: system + user + assistant(partial=true)
+    - 调用 DashScope API /chat/completions
     ↓
 cleanCompletion() 清理结果
-    - 移除 FIM 标记
+    - 移除特殊标记
     - 提取 markdown 代码块
     - 过滤中文解释
     ↓
@@ -183,21 +183,30 @@ cleanCompletion() 清理结果
 
 **API 端点**:
 - Base URL: `https://dashscope.aliyuncs.com/compatible-mode/v1`
-- Completions: `/completions`
+- Chat Completions: `/chat/completions`
 
 **认证**:
 - Header: `Authorization: Bearer {DASHSCOPE_API_KEY}`
 
-**FIM 格式**:
-```
-<|fim_prefix|>{prefix_code}<|fim_suffix|>{suffix_code}<|fim_middle|>
-```
-
-**补全请求**:
+**补全请求** (Chat Completions API):
 ```json
 {
   "model": "qwen3-coder-plus",
-  "prompt": "<|fim_prefix|>def hello():\n    <|fim_suffix|>\n    return result<|fim_middle|>",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a code completion assistant..."
+    },
+    {
+      "role": "user",
+      "content": "Complete the code at [CURSOR]:\n{prefix}[CURSOR]{suffix}"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "partial": true
+    }
+  ],
   "max_tokens": 512,
   "temperature": 0.1,
   "stream": false
@@ -207,15 +216,10 @@ cleanCompletion() 清理结果
 **关键参数**:
 - `temperature: 0.1`: 低温度，生成更确定的代码
 - `max_tokens: 512`: 最多生成 512 tokens
-- `stream: false`: 非流式响应
+- `partial: true`: 启用前缀续写模式
 
 **可用模型**:
 - `qwen3-coder-plus`: 推荐，支持上下文缓存
-- `qwen3-coder-flash`: 更快，支持上下文缓存
-- `qwen2.5-coder-32b-instruct`: 高质量
-- `qwen2.5-coder-14b-instruct`
-- `qwen2.5-coder-7b-instruct`: 入门选择
-- `qwen-coder-turbo`: 阿里云托管优化版
 
 ### 3. Terminal 集成
 
@@ -293,15 +297,16 @@ codex/
 
 3. **测试通义千问 API**:
    ```bash
-   # 测试补全
-   curl -X POST https://dashscope.aliyuncs.com/compatible-mode/v1/completions \
+   # 测试 Chat Completions API
+   curl -X POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions \
      -H "Authorization: Bearer $DASHSCOPE_API_KEY" \
      -H "Content-Type: application/json" \
      -d '{
        "model": "qwen3-coder-plus",
-       "prompt": "<|fim_prefix|>def bubble_sort(arr):<|fim_suffix|>",
-       "max_tokens": 512,
-       "temperature": 0.1
+       "messages": [
+         {"role": "user", "content": "Complete: def hello():"}
+       ],
+       "max_tokens": 100
      }'
    ```
 
@@ -321,7 +326,7 @@ codex/
 
 **问题 4: 模型返回中文解释而不是代码**
 - 在 `cleanCompletion()` 中过滤中文字符
-- 使用更大的模型
+- 优化 system prompt
 
 **问题 5: Tab 键接受补全不工作**
 - 不要用 AWT KeyListener（会被 IntelliJ 拦截）
